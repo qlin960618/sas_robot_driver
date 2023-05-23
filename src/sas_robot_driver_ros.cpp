@@ -26,7 +26,8 @@
 #
 # Contributors:
 #      1. Murilo M. Marinho (murilomarinho@ieee.org)
-#         Responsible for the original implementation.
+#         - Original implementation.
+#         - [2023/05/23] Initializing the robot_driver_'s joint limits in the constructor.
 #
 #      2. Juan Jose Quiroz Omana (juanjqogm@gmail.com) 
 #         Added documentation.
@@ -36,6 +37,7 @@
 
 
 #include <sas_robot_driver/sas_robot_driver_ros.h>
+#include <sas_conversions/sas_conversions.h>
 #include <dqrobotics/utils/DQ_Math.h>
 #include <dqrobotics/interfaces/json11/DQ_JsonReader.h>
 
@@ -93,7 +95,20 @@ RobotDriverROS::RobotDriverROS(ros::NodeHandle &nodehandle,
     clock_(configuration.thread_sampling_time_nsec),
     robot_driver_provider_(nodehandle,configuration_.robot_driver_provider_prefix)
 {
-
+    //[2023/05/23] Initializing the robot_driver_'s joint limits in the constructor.
+    //TODO: Check if the limits have not already been initialized in a better way?
+    auto current_limits = robot_driver_->get_joint_limits();
+    if(std::get<0>(current_limits).size() == 0
+       || std::get<1>(current_limits).size() == 0)
+    {
+        auto q_min_vectorxd = std_vector_double_to_vectorxd(configuration.q_min);
+        auto q_max_vectorxd = std_vector_double_to_vectorxd(configuration.q_max);
+        robot_driver_->set_joint_limits({q_min_vectorxd,q_max_vectorxd});
+    }
+    else
+    {
+        ROS_WARN_STREAM(ros::this_node::getName() << "::Ignoring RobotDriverROS joint limits, they were already set by driver.");
+    }
 }
 
 
