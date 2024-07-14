@@ -20,6 +20,9 @@
 #
 #   Author: Murilo M. Marinho, email: murilomarinho@ieee.org
 #
+#   Contributors: Quentin Lin
+#          -- added joint velocity control option
+#          -- isolate vrep to thread
 # ################################################################*/
 #include <exception>
 #include <sas_common/sas_common.h>
@@ -57,10 +60,16 @@ int main(int argc, char** argv)
         get_ros_param(nh,"/vrep_port",robot_driver_ros_composer_configuration.vrep_port);
         if(ros::param::has(ros::this_node::getName()+"/vrep_dynamically_enabled")) //Added 2022/08/01
             get_ros_param(nh,"/vrep_dynamically_enabled",robot_driver_ros_composer_configuration.vrep_dynamically_enabled_);
+        if(ros::param::has(ros::this_node::getName()+"/velocity_mode_enabled")) //Added 2024/07/14
+        {
+            ROS_WARN_STREAM(ros::this_node::getName()+"::Parameter velocity_mode_enabled is EXPERIMENTAL.");
+            get_ros_param(nh,"/velocity_mode_enabled",robot_driver_ros_composer_configuration.velocity_mode_enabled);
+        }
         get_ros_param(nh,"/robot_driver_interface_node_prefixes",robot_driver_ros_composer_configuration.robot_driver_interface_topic_prefixes);
         get_ros_param(nh,"/robot_parameter_file_path",robot_driver_ros_composer_configuration.robot_parameter_file_path);
         RobotDriverROSConfiguration robot_driver_ros_configuration;
         get_ros_param(nh,"/thread_sampling_time_nsec",robot_driver_ros_configuration.thread_sampling_time_nsec);
+        robot_driver_ros_composer_configuration.vrep_clock_sampling_time_nsec = robot_driver_ros_configuration.thread_sampling_time_nsec;
         robot_driver_ros_configuration.robot_driver_provider_prefix = ros::this_node::getName();
         ROS_INFO_STREAM(ros::this_node::getName()+"::Parameters OK.");
 
