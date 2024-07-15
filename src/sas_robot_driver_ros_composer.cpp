@@ -212,6 +212,12 @@ void RobotDriverROSComposer::_vrep_thread_main_loop()
     }
     ROS_INFO_STREAM(ros::this_node::getName()+"::_vrep_thread_main_loop::Connected to CoppeliaSim");
     try {
+        if(!configuration_.use_real_robot)
+        {
+            // not using real robot
+            vrep_desired_joint_position_ = vi.get_joint_positions(configuration_.vrep_robot_joint_names);
+        }
+
         vrep_side_initialized_ = true;
         thread_clock.init();
         while(not (*break_loops_))
