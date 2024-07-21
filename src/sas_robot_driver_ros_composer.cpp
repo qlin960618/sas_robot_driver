@@ -200,6 +200,7 @@ void RobotDriverROSComposer::_vrep_thread_main_loop()
             vrep_joint_states_ = vi.get_joint_positions(configuration_.vrep_robot_joint_names);
         }else {
             vrep_joint_states_ = vi.get_joint_positions(configuration_.vrep_robot_joint_names);
+            vrep_desired_joint_position_ = vrep_joint_states_;
         }
 
     }catch (ros::Exception &e)
