@@ -99,17 +99,17 @@ install(TARGETS
 
 ##### CPP BINARY #####
 
-add_executable(sas_robot_driver_ros_example
-    src/examples/sas_robot_driver_ros_example.cpp)
+#add_executable(sas_robot_driver_ros_example
+#    src/examples/sas_robot_driver_ros_example.cpp)
 
-target_link_libraries(sas_robot_driver_ros_example
-    ${PROJECT_NAME}
-    Eigen3::Eigen
-    )
-
-install(TARGETS
-  sas_robot_driver_ros_example
-  DESTINATION lib/${PROJECT_NAME})
+#target_link_libraries(sas_robot_driver_ros_example
+#    ${PROJECT_NAME}
+#    Eigen3::Eigen
+#    )
+#
+#install(TARGETS
+#  sas_robot_driver_ros_example
+#  DESTINATION lib/${PROJECT_NAME})
 
 ##END## CPP BINARY #####
 

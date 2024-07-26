@@ -23,6 +23,7 @@
 # ################################################################*/
 #include <rclcpp/rclcpp.hpp>
 #include <sas_core/examples/sas_robot_driver_example.hpp>
+#include <sas_robot_driver/sas_robot_driver.hpp>
 #include <sas_conversions/eigen3_std_conversions.hpp>
 #include <sas_robot_driver/sas_robot_driver_ros.hpp>
 #include <sas_common/sas_common.hpp>

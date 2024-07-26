@@ -27,7 +27,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 
-#include <sas_core/sas_robot_driver.hpp>
+#include <sas_robot_driver/sas_robot_driver.hpp>
 #include <sas_robot_driver/sas_robot_driver_client.hpp>
 #include <sas_robot_driver/sas_robot_driver_server.hpp>
 
@@ -35,15 +35,16 @@ namespace py = pybind11;
 using RDC = sas::RobotDriverClient;
 using RDS = sas::RobotDriverServer;
 
+
 PYBIND11_MODULE(_sas_robot_driver, m) {
 
-    py::enum_<sas::RobotDriver::Functionality>(m, "Functionality")
-            .value("None",    sas::RobotDriver::Functionality::None)
-            .value("PositionControl",sas::RobotDriver::Functionality::PositionControl)
-            .value("VelocityControl",sas::RobotDriver::Functionality::VelocityControl)
-            .value("ForceControl",sas::RobotDriver::Functionality::ForceControl)
-            .value("Homing",sas::RobotDriver::Functionality::Homing)
-            .value("ClearPositions",sas::RobotDriver::Functionality::ClearPositions)
+    py::enum_<sas_driver::RobotDriver::Functionality>(m, "Functionality")
+            .value("None",    sas_driver::RobotDriver::Functionality::None)
+            .value("PositionControl",sas_driver::RobotDriver::Functionality::PositionControl)
+            .value("VelocityControl",sas_driver::RobotDriver::Functionality::VelocityControl)
+            .value("ForceControl",sas_driver::RobotDriver::Functionality::ForceControl)
+            .value("Homing",sas_driver::RobotDriver::Functionality::Homing)
+            .value("ClearPositions",sas_driver::RobotDriver::Functionality::ClearPositions)
             .export_values();
 
     py::class_<RDC>(m, "RobotDriverClient")
@@ -58,7 +59,7 @@ PYBIND11_MODULE(_sas_robot_driver, m) {
             .def("get_joint_forces",&RDC::get_joint_forces)
             .def("get_joint_limits",&RDC::get_joint_limits)
             .def("get_home_states",&RDC::get_home_states)
-            .def("is_enabled",&RDC::is_enabled,"Returns true if the RobotDriverInterface is enabled.",py::arg("supported_functionality")=sas::RobotDriver::Functionality::PositionControl)
+            .def("is_enabled",&RDC::is_enabled,"Returns true if the RobotDriverInterface is enabled.",py::arg("supported_functionality")=sas_driver::RobotDriver::Functionality::PositionControl)
             .def("get_topic_prefix",&RDC::get_topic_prefix);
 
     py::class_<RDS>(m, "RobotDriverServer")
@@ -69,7 +70,7 @@ PYBIND11_MODULE(_sas_robot_driver, m) {
             .def("get_homing_signal",&RDS::get_homing_signal)
             .def("get_clear_positions_signal",&RDS::get_clear_positions_signal)
             .def("get_currently_active_functionality",&RDS::get_currently_active_functionality)
-            .def("is_enabled",&RDS::is_enabled,"Returns true if the RobotDriverProvider is enabled.",py::arg("supported_functionality")=sas::RobotDriver::Functionality::PositionControl)
+            .def("is_enabled",&RDS::is_enabled,"Returns true if the RobotDriverProvider is enabled.",py::arg("supported_functionality")=sas_driver::RobotDriver::Functionality::PositionControl)
             .def("send_joint_states",&RDS::send_joint_states)
             .def("send_joint_limits",&RDS::send_joint_limits)
             .def("send_home_state",&RDS::send_home_state);
