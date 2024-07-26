@@ -1,5 +1,5 @@
 /*
-# Copyright (c) 2016-2023 Murilo Marques Marinho
+# Copyright (c) 2016-2022 Murilo Marques Marinho
 #
 #    This file is part of sas_robot_driver.
 #
@@ -20,35 +20,20 @@
 #
 #   Author: Murilo M. Marinho, email: murilomarinho@ieee.org
 #
-# ################################################################
-#
-#
-#
-# Contributors:
-#      1. Murilo M. Marinho (murilomarinho@ieee.org)
-#         - Original implementation.
-#         - [2023/05/23] Initializing the robot_driver_'s joint limits in the constructor.
-#
-#      2. Juan Jose Quiroz Omana (juanjqogm@gmail.com)
-#         - [2023/05/20] Added documentation.
-#         - [2023/05/24] Modified the control_loop method to set the joint target velocities and
-#                        Update the joint velocities and joint forces by using send_joint_states().
-#
-# ################################################################
-*/
-
+# ################################################################*/
 #pragma once
 
 #include <atomic>
 #include <vector>
+#include <memory>
 
-//ROS related
-#include <ros/ros.h>
-#include <ros/callback_queue.h>
+#include <rclcpp/rclcpp.hpp>
 
-#include <sas_robot_driver/sas_robot_driver.h>
-#include <sas_robot_driver/sas_robot_driver_provider.h>
-#include <sas_clock/sas_clock.h>
+#include <sas_core/sas_clock.hpp>
+#include <sas_robot_driver/sas_robot_driver.hpp>
+#include <sas_robot_driver/sas_robot_driver_server.hpp>
+
+using namespace rclcpp;
 
 namespace sas
 {
@@ -56,7 +41,7 @@ namespace sas
 struct RobotDriverROSConfiguration
 {
     std::string robot_driver_provider_prefix;
-    int thread_sampling_time_nsec;
+    double thread_sampling_time_sec;
     std::vector<double> q_min;
     std::vector<double> q_max;
 };
@@ -64,11 +49,13 @@ struct RobotDriverROSConfiguration
 class RobotDriverROS
 {
 private:
+    std::shared_ptr<Node> node_;
+
     RobotDriverROSConfiguration configuration_;
     std::atomic_bool* kill_this_node_;
-    RobotDriver* robot_driver_;
+    std::shared_ptr<sas_driver::RobotDriver> robot_driver_;
     Clock clock_;
-    RobotDriverProvider robot_driver_provider_;
+    RobotDriverServer robot_driver_provider_;
 
     bool _should_shutdown() const;
 
@@ -76,9 +63,10 @@ public:
     RobotDriverROS(const RobotDriverROS&)=delete;
     RobotDriverROS()=delete;
 
-    RobotDriverROS(ros::NodeHandle& nodehandle, RobotDriver *robot_driver,
-              const RobotDriverROSConfiguration& configuration,
-              std::atomic_bool* kill_this_node);
+    RobotDriverROS(std::shared_ptr<Node>& node,
+                   const std::shared_ptr<sas_driver::RobotDriver> &robot_driver,
+                   const RobotDriverROSConfiguration& configuration,
+                   std::atomic_bool* kill_this_node);
     ~RobotDriverROS();
 
     int control_loop();

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 /*
 # Copyright (c) 2016-2023 Murilo Marques Marinho
 #
@@ -33,6 +33,9 @@
 #         - [2023/05/24] Added the methods get_joint_velocities(),
 #                        get_joint_forces(), and set_target_joint_velocities().
 #
+#      3. Quentin Lin (qlin1806@g.ecc.u-tokyo.ac.jp)
+#         - [2024/07/23] porting to ROS2 under local package
+#
 # ################################################################*/
 
 #include <exception>
@@ -42,7 +45,7 @@
 
 using namespace Eigen;
 
-namespace sas
+namespace sas_driver
 {
 class RobotDriver
 {
@@ -85,6 +88,5 @@ public:
 
 };
 }
-
 
 

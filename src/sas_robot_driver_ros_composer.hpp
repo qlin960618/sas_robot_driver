@@ -21,19 +21,16 @@
 #
 #   Author: Murilo M. Marinho, email: murilomarinho@ieee.org
 #
-#   Contributors: Quentin Lin
-#          -- added joint velocity control option
-#          -- isolate vrep to thread
 # ################################################################*/
 
 #include <exception>
 #include <atomic>
-#include <thread>
 
 #include <eigen3/Eigen/Dense>
 
-#include <sas_robot_driver/sas_robot_driver.h>
-#include <sas_robot_driver/sas_robot_driver_interface.h>
+#include <sas_robot_driver/sas_robot_driver.hpp>
+#include <sas_robot_driver/sas_robot_driver_client.hpp>
+#include <sas_core/sas_clock.hpp>
 
 #include <dqrobotics/interfaces/vrep/DQ_VrepInterface.h>
 
@@ -45,18 +42,24 @@ namespace sas
 struct RobotDriverROSComposerConfiguration
 {
     bool use_real_robot;
-    std::vector<std::string> vrep_robot_joint_names;
-    std::string vrep_ip;
-    int vrep_port;
-    bool vrep_dynamically_enabled_ = false;
-    int vrep_clock_sampling_time_nsec;
-    std::vector<std::string> robot_driver_interface_topic_prefixes;
+
+    bool use_coppeliasim;
+    std::vector<std::string> coppeliasim_robot_joint_names;
+    std::string coppeliasim_ip;
+    int coppeliasim_port;
+    bool coppeliasim_dynamically_enabled_ = false;
+
+    std::vector<std::string> robot_driver_client_names;
+
+    bool override_joint_limits_with_robot_parameter_file;
     std::string robot_parameter_file_path;
     bool velocity_mode_enabled = false;
+    double vrep_clock_sampling_time_sec;
 };
 
-class RobotDriverROSComposer: public RobotDriver
+class RobotDriverROSComposer: public sas_driver::RobotDriver
 {
+
 private:
     void _start_vrep_thread_main_loop();
 
@@ -73,10 +76,11 @@ private:
     std::atomic_bool vrep_thread_started_{false};
 
 protected:
+    std::shared_ptr<Node> node_;
+
     RobotDriverROSComposerConfiguration configuration_;
-    std::vector<std::unique_ptr<sas::RobotDriverInterface>> robot_driver_interface_vector_;
-
-
+    DQ_VrepInterface vi_;
+    std::vector<std::unique_ptr<sas::RobotDriverClient>> robot_driver_clients_;
     //std::atomic_bool* break_loops_;
     //std::tuple<VectorXd, VectorXd> joint_limits_;
     //RobotDriver(std::atomic_bool* break_loops);
@@ -84,15 +88,16 @@ protected:
     RobotDriverROSComposer(const RobotDriverROSComposer&)=delete;
 public:
     RobotDriverROSComposer(const RobotDriverROSComposerConfiguration& configuration,
-                           ros::NodeHandle& node_handle,
+                           std::shared_ptr<Node>& node,
                            std::atomic_bool *break_loops);
+
     VectorXd get_joint_positions() override;
     void set_target_joint_positions(const VectorXd& set_target_joint_positions_rad) override;
-    void set_joint_limits(const std::tuple<VectorXd, VectorXd>& joint_limits) override;
+    std::tuple<VectorXd, VectorXd> get_joint_limits() const override;
+    void set_joint_limits(const std::tuple<VectorXd, VectorXd>&) override;
 
     VectorXd get_joint_velocities() override;
     void set_target_joint_velocities(const VectorXd& desired_joint_velocities) override;
-
 
     void connect() override;
     void disconnect() override;

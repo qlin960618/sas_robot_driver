@@ -32,12 +32,16 @@
 #         - [2023/05/24] Added the methods get_joint_velocities(),
 #                        get_joint_forces(), and set_target_joint_velocities().
 #
+#      3. Quentin Lin (qlin1806@g.ecc.u-tokyo.ac.jp)
+#         - [2024/07/23] porting to ROS2 under local package
+#
 # ################################################################*/
 
 
-#include <sas_robot_driver/sas_robot_driver.h>
 
-namespace sas
+#include <sas_robot_driver/sas_robot_driver.hpp>
+
+namespace sas_driver
 {
 
 RobotDriver::RobotDriver(std::atomic_bool *break_loops):

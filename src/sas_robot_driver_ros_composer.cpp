@@ -20,34 +20,38 @@
 #
 #   Author: Murilo M. Marinho, email: murilomarinho@ieee.org
 #
-#   Contributors: Quentin Lin
-#          -- added joint velocity control option
-#          -- isolate vrep to thread
 # ################################################################*/
-#include "sas_robot_driver_ros_composer.h"
-#include <ros/callback_queue_interface.h>
+#include "sas_robot_driver_ros_composer.hpp"
+//#include <ros/callback_queue_interface.h>
 #include <dqrobotics/interfaces/json11/DQ_JsonReader.h>
-#include <sas_clock/sas_clock.h>
-#include <sas_common/sas_common.h>
+//#include <sas_common/sas_common.h>
+#include <sas_core/sas_core.hpp>
 
 namespace sas
 {
 RobotDriverROSComposer::RobotDriverROSComposer(const RobotDriverROSComposerConfiguration &configuration,
-                                               ros::NodeHandle &node_handle,
+                                               std::shared_ptr<Node> &node,
                                                std::atomic_bool *break_loops):
+    RobotDriver(break_loops),
+    node_(node),
     configuration_(configuration),
-    RobotDriver(break_loops)
+    vi_(break_loops)
 {
     if(configuration.use_real_robot)
     {
-        for(const std::string& topic_prefix: configuration.robot_driver_interface_topic_prefixes)
+        for(const std::string& topic_prefix: configuration.robot_driver_client_names)
         {
-            ROS_INFO_STREAM(ros::this_node::getName()+"::Adding subrobot driver with prefix "+topic_prefix);
-            robot_driver_interface_vector_.push_back(std::unique_ptr<RobotDriverInterface>(new RobotDriverInterface(node_handle,topic_prefix)));
+            //ROS_INFO_STREAM(ros::this_node::getName()+"::Adding subrobot driver with prefix "+topic_prefix);
+            RCLCPP_INFO_STREAM(node_->get_logger(),"::Adding RobotDriverClient driver with prefix "+topic_prefix);
+            robot_driver_clients_.push_back(std::unique_ptr<RobotDriverClient>(new RobotDriverClient(node,topic_prefix)));
         }
     }
-    DQ_SerialManipulatorDH smdh = DQ_JsonReader::get_from_json<DQ_SerialManipulatorDH>(configuration_.robot_parameter_file_path);
-    joint_limits_ = {smdh.get_lower_q_limit(),smdh.get_upper_q_limit()};
+
+    if(configuration_.override_joint_limits_with_robot_parameter_file)
+    {
+        DQ_SerialManipulatorDH smdh = DQ_JsonReader::get_from_json<DQ_SerialManipulatorDH>(configuration_.robot_parameter_file_path);
+        joint_limits_ = {smdh.get_lower_q_limit(),smdh.get_upper_q_limit()};
+    }
 }
 
 VectorXd RobotDriverROSComposer::get_joint_positions()
@@ -55,7 +59,7 @@ VectorXd RobotDriverROSComposer::get_joint_positions()
     if(configuration_.use_real_robot)
     {
         VectorXd joint_positions;
-        for(const auto& interface : robot_driver_interface_vector_)
+        for(const auto& interface : robot_driver_clients_)
         {
             joint_positions = concatenate(joint_positions, interface->get_joint_positions());
         }
@@ -65,7 +69,8 @@ VectorXd RobotDriverROSComposer::get_joint_positions()
     {
         if(vrep_thread_exited_)
         {
-            throw std::runtime_error("["+ros::this_node::getName()+"]::get_joint_positions::Vrep thread exited.");
+            RCLCPP_ERROR_STREAM(node_->get_logger(),"::get_joint_positions::Vrep thread exited.");
+            throw std::runtime_error("["+ std::string(node_->get_name()) + "]::get_joint_positions::Vrep thread exited.");
         }
         return vrep_joint_states_;
     }
@@ -76,60 +81,71 @@ void RobotDriverROSComposer::set_target_joint_positions(const VectorXd &set_targ
     if(configuration_.use_real_robot)
     {
         int accumulator = 0;
-        for(const auto& interface : robot_driver_interface_vector_)
+        for(const auto& interface : robot_driver_clients_)
         {
             interface->send_target_joint_positions(set_target_joint_positions_rad.segment(accumulator,interface->get_joint_positions().size()));
             accumulator+=interface->get_joint_positions().size();
         }
+        vrep_desired_joint_position_ = set_target_joint_positions_rad;
     }
-    // update vrep desired joint position
-    vrep_desired_joint_position_ = set_target_joint_positions_rad;
+
+    if(configuration_.use_coppeliasim)
+    {
+        // update vrep desired joint position
+        vrep_desired_joint_position_ = set_target_joint_positions_rad;
+    }
 }
 
 VectorXd RobotDriverROSComposer::get_joint_velocities() {
     if(configuration_.use_real_robot)
     {
         VectorXd joint_velocity;
-        for(const auto& interface : robot_driver_interface_vector_)
+        for(const auto& interface : robot_driver_clients_)
         {
             joint_velocity = concatenate(joint_velocity, interface->get_joint_velocities());
         }
         return joint_velocity;
     }
-    else
-    {
+    if(configuration_.use_coppeliasim){
         if(vrep_thread_exited_)
         {
-            throw std::runtime_error("["+ros::this_node::getName()+"]::get_joint_positions::Vrep thread exited.");
+            RCLCPP_ERROR_STREAM(node_->get_logger(),"::get_joint_velocities::Vrep thread exited.");
+            throw std::runtime_error("["+ std::string(node_->get_name()) + "]::get_joint_velocities::Vrep thread exited.");
         }
         return VectorXd::Zero(vrep_joint_states_.size());
     }
+    return VectorXd::Zero(vrep_joint_states_.size());
 }
+
 void RobotDriverROSComposer::set_target_joint_velocities(const VectorXd& desired_joint_velocities) {
     if(configuration_.use_real_robot) {
         int accumulator = 0;
-        for(const auto& interface : robot_driver_interface_vector_)
+        for(const auto& interface : robot_driver_clients_)
         {
             interface->send_target_joint_velocities(desired_joint_velocities.segment(accumulator,interface->get_joint_velocities().size()));
             accumulator+=interface->get_joint_velocities().size();
         }
-    }else {
+    }
+    if(configuration_.use_coppeliasim){
         //do nothihng
     }
 }
 
-void RobotDriverROSComposer::set_joint_limits(const std::tuple<VectorXd, VectorXd> &joint_limits)
+
+
+void RobotDriverROSComposer::set_joint_limits(const std::tuple<VectorXd, VectorXd>&)
 {
     throw std::runtime_error("RobotDriverROSComposer::set_joint_limits::Not accepted.");
 }
 
 void RobotDriverROSComposer::connect()
 {
-
 }
 
 void RobotDriverROSComposer::disconnect()
 {
+    if(configuration_.use_coppeliasim)
+        vi_.disconnect();
 }
 
 void RobotDriverROSComposer::initialize()
@@ -139,9 +155,9 @@ void RobotDriverROSComposer::initialize()
         bool initialized = false;
         while(not initialized and not (*break_loops_))
         {
-            ros::spinOnce();
+            spin_some(node_);
             initialized = true;
-            for(const auto& interface : robot_driver_interface_vector_)
+            for(const auto& interface : robot_driver_clients_)
             {
                 if(not interface->is_enabled())
                     initialized = false;
@@ -160,14 +176,15 @@ void RobotDriverROSComposer::initialize()
         //Call it once to initialize the CoppeliaSim streaming.
     }
     _start_vrep_thread_main_loop();
-    ROS_INFO_STREAM("["+ros::this_node::getName()+"]::Waiting for Vrep thread to initialize.");
+    RCLCPP_INFO_STREAM(node_->get_logger(),"::Waiting for Vrep thread to initialize.");
     while(not vrep_side_initialized_ and not (*break_loops_))
     {
-        ros::spinOnce();
+        spin_some(node_);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         if(vrep_thread_exited_)
         {
-            throw std::runtime_error("["+ros::this_node::getName()+"]::initialize::Vrep thread exited.");
+            RCLCPP_ERROR_STREAM(node_->get_logger(),"::initialize::Vrep thread exited.");
+            throw std::runtime_error("["+std::string(node_->get_name())+"]::initialize::Vrep thread exited.");
         }
     }
     driver_side_initialized_ = true;
@@ -181,71 +198,74 @@ void RobotDriverROSComposer::_start_vrep_thread_main_loop()
 
 void RobotDriverROSComposer::_vrep_thread_main_loop()
 {
-    Clock thread_clock(configuration_.vrep_clock_sampling_time_nsec);
+    Clock thread_clock(configuration_.vrep_clock_sampling_time_sec);
     DQ_VrepInterface vi(break_loops_);
 
-    if(!vi.connect(configuration_.vrep_ip,
-                    configuration_.vrep_port,
+    if(!vi.connect(configuration_.coppeliasim_ip,
+                    configuration_.coppeliasim_port,
                     100,
                     10))
     {
         vrep_thread_exited_ = true;
-        throw std::runtime_error("["+ros::this_node::getName()+"]::_vrep_thread_main_loop::Unable to connect to CoppeliaSim.");
+        throw std::runtime_error("["+ std::string(node_->get_name()) + "]::_vrep_thread_main_loop::Unable to connect to CoppeliaSim.");
     }
     try {
         if(configuration_.use_real_robot) {
-            vi.set_joint_positions(configuration_.vrep_robot_joint_names,vrep_desired_joint_position_);
-            if(configuration_.vrep_dynamically_enabled_)
-                vi.set_joint_target_positions(configuration_.vrep_robot_joint_names,vrep_desired_joint_position_);
-            vrep_joint_states_ = vi.get_joint_positions(configuration_.vrep_robot_joint_names);
+            vi.set_joint_positions(configuration_.coppeliasim_robot_joint_names,vrep_desired_joint_position_);
+            if(configuration_.coppeliasim_dynamically_enabled_)
+                vi.set_joint_target_positions(configuration_.coppeliasim_robot_joint_names,vrep_desired_joint_position_);
+            vrep_joint_states_ = vi.get_joint_positions(configuration_.coppeliasim_robot_joint_names);
         }else {
-            vrep_joint_states_ = vi.get_joint_positions(configuration_.vrep_robot_joint_names);
+            vrep_joint_states_ = vi.get_joint_positions(configuration_.coppeliasim_robot_joint_names);
             vrep_desired_joint_position_ = vrep_joint_states_;
         }
 
-    }catch (ros::Exception &e)
+    }catch (exceptions::RCLError &e)
     {
         vrep_thread_exited_ = true;
-        ROS_ERROR_STREAM("["+ros::this_node::getName()+"]::_vrep_thread_main_loop::Exception::"+e.what());
+        RCLCPP_ERROR_STREAM(node_->get_logger(),"::_vrep_thread_main_loop::Exception::"+std::string(e.what()));
     }catch (...) {
         vrep_thread_exited_ = true;
-        ROS_ERROR_STREAM("["+ros::this_node::getName()+"]::_vrep_thread_main_loop::Exception::Unknown");
+        RCLCPP_ERROR_STREAM(node_->get_logger(),"::_vrep_thread_main_loop::Exception::Unknown");
     }
-    ROS_INFO_STREAM(ros::this_node::getName()+"::_vrep_thread_main_loop::Connected to CoppeliaSim");
+    RCLCPP_INFO_STREAM(node_->get_logger(),"::_vrep_thread_main_loop::Connected to CoppeliaSim");
     try {
         if(!configuration_.use_real_robot)
         {
             // not using real robot
-            vrep_desired_joint_position_ = vi.get_joint_positions(configuration_.vrep_robot_joint_names);
+            vrep_desired_joint_position_ = vi.get_joint_positions(configuration_.coppeliasim_robot_joint_names);
         }
 
         vrep_side_initialized_ = true;
         thread_clock.init();
         while(not (*break_loops_))
         {
+            thread_clock.update_and_sleep();
+            if(!driver_side_initialized_) {
+                continue;
+            }
 
-            if(configuration_.vrep_dynamically_enabled_)
+            if(configuration_.coppeliasim_dynamically_enabled_)
             {
-                vi.set_joint_target_positions(configuration_.vrep_robot_joint_names,vrep_desired_joint_position_);
+                vi.set_joint_target_positions(configuration_.coppeliasim_robot_joint_names,vrep_desired_joint_position_);
             }
             else
             {
-                vi.set_joint_positions(configuration_.vrep_robot_joint_names,vrep_desired_joint_position_);
+                vi.set_joint_positions(configuration_.coppeliasim_robot_joint_names,vrep_desired_joint_position_);
             }
 
-            vrep_joint_states_ = vi.get_joint_positions(configuration_.vrep_robot_joint_names);
+            vrep_joint_states_ = vi.get_joint_positions(configuration_.coppeliasim_robot_joint_names);
 
-            thread_clock.update_and_sleep();
         }
     }catch (std::exception &e)
     {
-        ROS_ERROR_STREAM(ros::this_node::getName()+"::_vrep_thread_main_loop::Exception::"+e.what());
+        RCLCPP_ERROR_STREAM(node_->get_logger(),"::_vrep_thread_main_loop::Exception::"+std::string(e.what()));
     }catch (...) {
-        ROS_ERROR_STREAM(ros::this_node::getName()+"::_vrep_thread_main_loop::Exception::Unknown");
+        RCLCPP_ERROR_STREAM(node_->get_logger(),"::_vrep_thread_main_loop::Exception::Unknown");
     }
     vi.disconnect();
     vrep_thread_exited_ = true;
-    ROS_INFO_STREAM(ros::this_node::getName()+"::_vrep_thread_main_loop::Exiting.");
+    RCLCPP_INFO_STREAM(node_->get_logger(),"::_vrep_thread_main_loop::Exiting.");
 }
 
 void RobotDriverROSComposer::deinitialize()
@@ -255,10 +275,29 @@ void RobotDriverROSComposer::deinitialize()
         if(vrep_thread_.joinable()) {
             vrep_thread_.join();
         }
-        ROS_INFO_STREAM("["+ros::this_node::getName()+"]::Vrep thread joined.");
+        RCLCPP_INFO_STREAM(node_->get_logger(),"::Vrep thread joined.");
     }
 }
 
 RobotDriverROSComposer::~RobotDriverROSComposer()=default;
+
+//Defined last because QTCreator messes up the identation because of the auto [,] operator.
+std::tuple<VectorXd, VectorXd> RobotDriverROSComposer::get_joint_limits() const
+{
+    if(!configuration_.override_joint_limits_with_robot_parameter_file)
+    {
+        VectorXd joint_positions_min;
+        VectorXd joint_positions_max;
+        for(const auto& interface : robot_driver_clients_)
+        {
+            auto [joint_positions_min_l, joint_positions_max_l] = interface->get_joint_limits();
+            joint_positions_min = concatenate(joint_positions_min, joint_positions_min_l);
+            joint_positions_max = concatenate(joint_positions_max, joint_positions_max_l);
+        }
+        return {joint_positions_min, joint_positions_max};
+    }
+    return joint_limits_;
+}
+
 
 }

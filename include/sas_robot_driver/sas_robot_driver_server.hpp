@@ -25,54 +25,60 @@
 
 #include <tuple>
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
+#include <std_msgs/msg/int32_multi_array.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
 
-#include <sensor_msgs/JointState.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <std_msgs/Float64MultiArray.h>
-#include <std_msgs/Int32MultiArray.h>
+#include <sas_robot_driver/sas_robot_driver.hpp>
+#include <sas_core/sas_object.hpp>
 
-#include <sas_robot_driver/sas_robot_driver.h>
+using namespace rclcpp;
+using namespace sas_driver;
 
 namespace sas
 {
 
-class RobotDriverProvider
+class RobotDriverServer: private sas::Object
 {
 private:
+    std::shared_ptr<Node> node_;
+
     std::string node_prefix_;
     RobotDriver::Functionality currently_active_functionality_;
 
-    ros::Publisher publisher_joint_states_;
-    ros::Publisher publisher_joint_limits_min_;
-    ros::Publisher publisher_joint_limits_max_;
-    ros::Publisher publisher_home_state_;
+    Publisher<sensor_msgs::msg::JointState>::SharedPtr publisher_joint_states_;
+    Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr publisher_joint_limits_min_;
+    Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr publisher_joint_limits_max_;
+    Publisher<std_msgs::msg::Int32MultiArray>::SharedPtr publisher_home_state_;
 
-    ros::Subscriber subscriber_target_joint_positions_;
+    Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr subscriber_target_joint_positions_;
     VectorXd target_joint_positions_;
-    ros::Subscriber subscriber_target_joint_velocities_;
+    Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr subscriber_target_joint_velocities_;
     VectorXd target_joint_velocities_;
-    ros::Subscriber subscriber_target_joint_forces_;
+    Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr subscriber_target_joint_forces_;
     VectorXd target_joint_forces_;
-    ros::Subscriber subscriber_homing_signal_;
+    Subscription<std_msgs::msg::Int32MultiArray>::SharedPtr subscriber_homing_signal_;
     VectorXi homing_signal_;
-    ros::Subscriber subscriber_clear_positions_signal_;
+    Subscription<std_msgs::msg::Int32MultiArray>::SharedPtr subscriber_clear_positions_signal_;
     VectorXi clear_positions_signal_;
 
-    void _callback_target_joint_positions(const std_msgs::Float64MultiArrayConstPtr& msg);
-    void _callback_target_joint_velocities(const std_msgs::Float64MultiArrayConstPtr& msg);
-    void _callback_target_joint_forces(const std_msgs::Float64MultiArrayConstPtr& msg);
-    void _callback_homing_signal(const std_msgs::Int32MultiArrayConstPtr& msg);
-    void _callback_clear_positions_signal(const std_msgs::Int32MultiArrayConstPtr& msg);
+    void _callback_target_joint_positions(const std_msgs::msg::Float64MultiArray &msg);
+    void _callback_target_joint_velocities(const std_msgs::msg::Float64MultiArray &msg);
+    void _callback_target_joint_forces(const std_msgs::msg::Float64MultiArray &msg);
+    void _callback_homing_signal(const std_msgs::msg::Int32MultiArray& msg);
+    void _callback_clear_positions_signal(const std_msgs::msg::Int32MultiArray &msg);
 public:
-    RobotDriverProvider() = delete;
-    RobotDriverProvider(const RobotDriverProvider&) = delete;
+    RobotDriverServer() = delete;
+    RobotDriverServer(const RobotDriverServer&) = delete;
 
-#ifdef IS_SAS_PYTHON_BUILD
-    RobotDriverProvider(const std::string& node_prefix);
-#endif
-    RobotDriverProvider(ros::NodeHandle& nodehandle, const std::string& node_prefix=ros::this_node::getName());
-    RobotDriverProvider(ros::NodeHandle& publisher_nodehandle, ros::NodeHandle& subscriber_nodehandle, const std::string& node_prefix=ros::this_node::getName());
+//see the discussion in sas_common to understand why this is commented out
+//#ifdef IS_SAS_PYTHON_BUILD
+//    RobotDriverServer(const std::string& node_prefix);
+//#endif
+
+    RobotDriverServer(const std::shared_ptr<Node> &node, const std::string& node_prefix="GET_FROM_NODE");
 
     VectorXd get_target_joint_positions() const;
     VectorXd get_target_joint_velocities() const;
@@ -88,9 +94,6 @@ public:
                            const VectorXd& joint_forces);
     void send_joint_limits(const std::tuple<VectorXd, VectorXd>& joint_limits);
     void send_home_state(const VectorXi& home_state);
-
-    //Deprecated
-    void send_joint_positions(const VectorXd& joint_positions);
 };
 
 }
