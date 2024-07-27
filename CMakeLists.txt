@@ -99,6 +99,10 @@ install(TARGETS
 
 ##### CPP BINARY #####
 
+install(PROGRAMS
+        scripts/sas_robot_driver_interface_example.py
+        DESTINATION lib/${PROJECT_NAME}
+)
 #add_executable(sas_robot_driver_ros_example
 #    src/examples/sas_robot_driver_ros_example.cpp)
 

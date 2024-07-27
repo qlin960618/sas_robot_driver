@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Copyright (c) 2020-2023, Murilo Marques Marinho (murilomarinho@ieee.org)
 import time
 from dqrobotics import *  # Despite what PyCharm might say, this is very much necessary or DQs will not be recognized
@@ -7,6 +9,7 @@ from sas_robot_driver import RobotDriverClient, RobotDriverServer
 
 def main(args=None):
     try:
+        print("args", args)
         # rclpy.init(args=args)
         rclcpp_init()
 
