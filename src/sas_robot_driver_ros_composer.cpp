@@ -67,6 +67,7 @@ VectorXd RobotDriverROSComposer::get_joint_positions()
         {
             throw std::runtime_error("["+ros::this_node::getName()+"]::get_joint_positions::Vrep thread exited.");
         }
+         vrep_joint_states_ = vrep_desired_joint_position_;
         return vrep_joint_states_;
     }
 }
@@ -181,7 +182,7 @@ void RobotDriverROSComposer::_start_vrep_thread_main_loop()
 
 void RobotDriverROSComposer::_vrep_thread_main_loop()
 {
-    Clock thread_clock(configuration_.vrep_clock_sampling_time_nsec);
+    Clock thread_clock(configuration_.vrep_clock_sampling_time_nsec * VREP_CLOCK_UNDER_SAMPLING_TIME_MULTIPLIER);
     DQ_VrepInterface vi(break_loops_);
 
     if(!vi.connect(configuration_.vrep_ip,

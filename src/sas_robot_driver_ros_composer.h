@@ -37,6 +37,8 @@
 
 #include <dqrobotics/interfaces/vrep/DQ_VrepInterface.h>
 
+#define VREP_CLOCK_UNDER_SAMPLING_TIME_MULTIPLIER 3
+
 using namespace Eigen;
 
 namespace sas
