@@ -136,6 +136,7 @@ int RobotDriverROS::control_loop()
         {
             clock_.update_and_sleep();
             ros::spinOnce();
+            if(!ros::ok()){kill_this_node_->store(true);}
 
             if(robot_driver_provider_.is_enabled())
             {

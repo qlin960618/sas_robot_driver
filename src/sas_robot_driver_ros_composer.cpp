@@ -223,11 +223,6 @@ void RobotDriverROSComposer::_vrep_thread_main_loop()
         thread_clock.init();
         while(not (*break_loops_))
         {
-            if(!ros::ok())
-            {
-                break_loops_->store(true);
-            }
-
             if(configuration_.vrep_dynamically_enabled_)
             {
                 vi.set_joint_target_positions(configuration_.vrep_robot_joint_names,vrep_desired_joint_position_);
